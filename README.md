@@ -4,6 +4,13 @@
 
 A library that provides the ability to tunnel TCP socket connections to ASP.NET Core WebSockets (Websockify) and add a TCP socket bridge (Unwebsockify) to your local environment.
 
+## Minimum Requirements
+
+- Websockify: Requires a supported LTS version of .NET 6.0, .NET 8.0 as of May 2024. Also, It's ASP.NET middleware, so the Web SDK is a must-have.
+  - Supported .NET Version: .NET 6.0, .NET 8.0
+- Unwebsockify: Requires a platform with .NET Standard 1.3 or later that can handle receiving and sending connections over TCP sockets.
+  - Supported .NET Version: .NET Core 1.0+, .NET 5+, .NET Framework 4.6+, Mono 4.6+, UWP 10.0+, Unity 2018.1+
+
 ## Usage
 
 ### Websockify
