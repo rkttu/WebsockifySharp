@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebsockifySharp.Websockify", "WebsockifySharp.Websockify\WebsockifySharp.Websockify.csproj", "{360BDE1B-3892-41CB-8C6B-15ACA699193C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebsockifySharp.Unwebsockify", "WebsockifySharp.Unwebsockify\WebsockifySharp.Unwebsockify.csproj", "{2E459569-F553-434F-9A4C-E2CBF0221B86}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{360BDE1B-3892-41CB-8C6B-15ACA699193C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{360BDE1B-3892-41CB-8C6B-15ACA699193C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{360BDE1B-3892-41CB-8C6B-15ACA699193C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{360BDE1B-3892-41CB-8C6B-15ACA699193C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2E459569-F553-434F-9A4C-E2CBF0221B86}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2E459569-F553-434F-9A4C-E2CBF0221B86}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2E459569-F553-434F-9A4C-E2CBF0221B86}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2E459569-F553-434F-9A4C-E2CBF0221B86}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {17BD5BD3-747C-4BB7-8C54-44E85E2B4664}
+	EndGlobalSection
+EndGlobal

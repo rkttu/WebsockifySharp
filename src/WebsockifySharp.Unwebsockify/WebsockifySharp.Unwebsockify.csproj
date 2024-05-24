@@ -1,0 +1,46 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<TargetFrameworks>netstandard1.3;netstandard2.0</TargetFrameworks>
+		<OutputType>Library</OutputType>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<AssemblyName>WebsockifySharp.Unwebsockify</AssemblyName>
+		<RootNamespace>WebsockifySharp.Unwebsockify</RootNamespace>
+		<Authors>Jung Hyun, Nam</Authors>
+		<Company>rkttu.com</Company>
+		<Product>WebsockifySharp</Product>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+		<Title>WebsockifySharp Unwebsockify Client Library</Title>
+		<Description>A library that provides the ability to connect to the Websockify HTTP/HTTPS endpoint to open a bridged TCP socket on your local machine.</Description>
+		<Copyright>(c) 2024 Jung Hyun, Nam, All rights reserved.</Copyright>
+		<PackageProjectUrl>https://github.com/rkttu/WebsockifySharp</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/rkttu/WebsockifySharp.git</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageTags>websockify;webunsockify;tcp;ws;wss;websocket;tunnel;proxy</PackageTags>
+		<AssemblyVersion>0.5.0</AssemblyVersion>
+		<FileVersion>0.5.0</FileVersion>
+		<PackageVersion>0.5.0</PackageVersion>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<IncludeSymbols>True</IncludeSymbols>
+		<IsPackable>True</IsPackable>
+		<GenerateDocumentationFile>True</GenerateDocumentationFile>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
+	
+	<ItemGroup>
+		<PackageReference Include="System.Net.WebSockets.Client" Version="4.3.2" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+		<!-- .NET Standard 2.0 Specific -->
+		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="1.0.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\..\README.md">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+</Project>
