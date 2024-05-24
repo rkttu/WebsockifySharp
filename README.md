@@ -1,5 +1,7 @@
 # WebsockifySharp
 
+[![NuGet Version](https://img.shields.io/nuget/v/WebsockifySharp.Websockify?label=Websockify%20NuGet)](https://www.nuget.org/packages/WebsockifySharp.Websockify/) [![NuGet Version](https://img.shields.io/nuget/v/WebsockifySharp.Unwebsockify?label=Unwebsockify%20NuGet)](https://www.nuget.org/packages/WebsockifySharp.Unwebsockify/) [![GitHub Sponsors](https://img.shields.io/github/sponsors/rkttu)](https://github.com/sponsors/rkttu/)
+
 A library that provides the ability to tunnel TCP socket connections to ASP.NET Core WebSockets (Websockify) and add a TCP socket bridge (Unwebsockify) to your local environment.
 
 ## Usage
