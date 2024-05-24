@@ -40,3 +40,8 @@ using (var unwebsockify = new Unwebsockify(remoteWebSocketUrl, localListenEndPoi
 
 - Websockify for ASP.NET Core: [https://github.com/ProjectMile/Mile.Websockify](https://github.com/ProjectMile/Mile.Websockify)
 - Unwebsockify (Python): [https://github.com/jimparis/unwebsockify](https://github.com/jimparis/unwebsockify)
+
+
+## License
+
+This library follows Apache-2.0 license. See [LICENSE](./LICENSE) file for more information.
