@@ -1,0 +1,36 @@
+name: .NET
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+env:
+  DOTNET_NOLOGO: true
+jobs:
+  build:
+    # If this library depends on the windows API, you should use the windows latest runner.
+    # Otherwise, you can use the ubuntu latest runner.
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+    - name: Restore dependencies
+      run: dotnet restore ./src/
+    - name: Build
+      run: dotnet build -c Release --no-restore ./src/
+    - name: Test
+      run: dotnet test -c Release --no-build --verbosity normal ./src/
+    - name: Copy Artifacts
+      run: |
+        mkdir ./nuget/
+        cp ./src/**/bin/Release/*.nupkg ./nuget/
+    - uses: actions/upload-artifact@v4
+      with:
+        name: nuget
+        if-no-files-found: error
+        retention-days: 7
+        path: ./nuget/
