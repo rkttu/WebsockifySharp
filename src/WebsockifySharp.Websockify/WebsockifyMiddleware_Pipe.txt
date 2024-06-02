@@ -1,0 +1,291 @@
+﻿using System.Buffers;
+using System.IO.Pipelines;
+using System.Net;
+using System.Net.Sockets;
+using System.Net.WebSockets;
+
+namespace WebsockifySharp.Websockify;
+
+/// <summary>
+/// Middleware for handling WebSocket connections and proxying data between WebSocket and TCP.
+/// </summary>
+public sealed partial class WebsockifyMiddleware { }
+
+partial class WebsockifyMiddleware
+{
+    /// <summary>
+    /// The recommended buffer size for reading and writing data.
+    /// </summary>
+    public const int RecommendedBufferSize = 1024 * 64;
+
+    /// <summary>
+    /// The minimum buffer size for reading and writing data.
+    /// </summary>
+    public const int MinimumBufferSize = 1024 * 1;
+
+    private readonly RequestDelegate _next;
+    private readonly string _remoteHostName;
+    private readonly int _remoteTcpPort;
+    private readonly int _bufferSizeInBytes;
+    private readonly Lazy<Task<IPEndPoint>> _remoteEndpointResolver;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="WebsockifyMiddleware"/> class.
+    /// </summary>
+    /// <param name="next">The next middleware in the pipeline.</param>
+    /// <param name="remoteHostName">The remote host name (DNS Host, IPv4, IPv6).</param>
+    /// <param name="remoteTcpPort">The remote TCP port.</param>
+    /// <param name="bufferSizeInBytes">The buffer size in bytes.</param>
+    public WebsockifyMiddleware(
+        RequestDelegate next,
+        string remoteHostName,
+        int remoteTcpPort,
+        int bufferSizeInBytes = RecommendedBufferSize)
+    {
+        if (next == null)
+            throw new ArgumentNullException(nameof(next));
+        if (remoteHostName == null)
+            throw new ArgumentNullException(nameof(remoteHostName));
+        if (remoteTcpPort < IPEndPoint.MinPort || remoteTcpPort > IPEndPoint.MaxPort)
+            throw new ArgumentOutOfRangeException(nameof(remoteTcpPort));
+        if (bufferSizeInBytes < MinimumBufferSize)
+            bufferSizeInBytes = MinimumBufferSize;
+
+        _next = next;
+        _remoteHostName = remoteHostName;
+        _remoteTcpPort = remoteTcpPort;
+        _bufferSizeInBytes = bufferSizeInBytes;
+        _remoteEndpointResolver = new Lazy<Task<IPEndPoint>>(
+            () => GetIPEndPointAsync(remoteHostName, remoteTcpPort, CancellationToken.None));
+    }
+
+    private static async Task<IPEndPoint> GetIPEndPointAsync(string hostname, int port, CancellationToken cancellationToken)
+    {
+        if (IPAddress.TryParse(hostname, out IPAddress? address) && address != null)
+            return new IPEndPoint(address, port);
+
+        var addresses = await Dns.GetHostAddressesAsync(hostname, cancellationToken).ConfigureAwait(false);
+
+        if (addresses.Length < 1)
+            throw new ArgumentException($"Unable to resolve hostname: {hostname}");
+
+        foreach (var eachAddress in addresses.OrderBy(x => x.AddressFamily))
+        {
+            if (eachAddress.AddressFamily == AddressFamily.InterNetwork)
+                return new IPEndPoint(eachAddress, port);
+
+            if (eachAddress.AddressFamily == AddressFamily.InterNetworkV6)
+                return new IPEndPoint(eachAddress, port);
+        }
+
+        throw new ArgumentException($"No IPv4 or IPv6 addresses found for hostname: {hostname}");
+    }
+
+    /// <summary>
+    /// Invokes the middleware.
+    /// </summary>
+    /// <param name="context">The HTTP context.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    public async Task InvokeAsync(HttpContext context)
+    {
+        var cancellationToken = context.RequestAborted;
+        var logger = context.RequestServices
+            .GetRequiredService<ILogger<WebsockifyMiddleware>>();
+
+        if (context.WebSockets.IsWebSocketRequest)
+        {
+            using var webSocket = await context.WebSockets
+                .AcceptWebSocketAsync()
+                .ConfigureAwait(false);
+
+            var remoteEndPoint = await _remoteEndpointResolver.Value
+                .ConfigureAwait(false);
+
+            using var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+            await socket.ConnectAsync(remoteEndPoint, cancellationToken)
+                .ConfigureAwait(false);
+
+            var receiveTask = RelaySocketToWebSocketAsync(
+                socket, webSocket, _bufferSizeInBytes, logger, cancellationToken);
+            var sendTask = RelayWebSocketToSocketAsync(
+                webSocket, socket, _bufferSizeInBytes, logger, cancellationToken);
+            await Task.WhenAll(receiveTask, sendTask).ConfigureAwait(false);
+        }
+        else
+            context.Response.StatusCode = 400;
+
+        await _next.Invoke(context);
+    }
+}
+
+// Receive
+partial class WebsockifyMiddleware
+{
+    private static async Task RelaySocketToWebSocketAsync(
+        Socket socket, WebSocket webSocket, int bufferSize,
+        ILogger logger, CancellationToken cancellationToken)
+    {
+        var pipe = new Pipe();
+        var writing = FillPipeFromSocketAsync(socket, pipe.Writer, bufferSize, logger, cancellationToken);
+        var reading = ReadPipeToWebSocketAsync(pipe.Reader, webSocket, logger, cancellationToken);
+        await Task.WhenAll(writing, reading).ConfigureAwait(false);
+    }
+
+    private static async Task FillPipeFromSocketAsync(Socket socket, PipeWriter writer, int bufferSize, ILogger logger, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var memory = writer.GetMemory(bufferSize);
+
+            try
+            {
+                var bytesRead = await socket.ReceiveAsync(
+                    memory, SocketFlags.None, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (bytesRead == 0)
+                    break;
+
+                writer.Advance(bytesRead);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error reading from Socket.");
+                break;
+            }
+
+            var result = await writer.FlushAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (result.IsCompleted)
+                break;
+        }
+
+        writer.Complete();
+    }
+
+    private static async Task ReadPipeToWebSocketAsync(PipeReader reader, WebSocket webSocket, ILogger logger, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var result = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var buffer = result.Buffer;
+
+            if (buffer.Length > 0)
+            {
+                try
+                {
+                    foreach (var segment in buffer)
+                    {
+                        await webSocket.SendAsync(segment, WebSocketMessageType.Binary, true, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error writing to WebSocket.");
+                    break;
+                }
+            }
+
+            reader.AdvanceTo(buffer.End);
+
+            if (result.IsCompleted)
+                break;
+        }
+
+        reader.Complete();
+    }
+}
+
+// Send
+partial class WebsockifyMiddleware
+{
+    private static async Task RelayWebSocketToSocketAsync(
+        WebSocket webSocket, Socket socket, int bufferSize,
+        ILogger logger, CancellationToken cancellationToken)
+    {
+        var pipe = new Pipe();
+        var writing = FillPipeFromWebSocketAsync(webSocket, pipe.Writer, bufferSize, logger, cancellationToken);
+        var reading = ReadPipeToSocketAsync(pipe.Reader, socket, logger, cancellationToken);
+        await Task.WhenAll(writing, reading).ConfigureAwait(false);
+
+        socket.Shutdown(SocketShutdown.Both);
+        socket.Close();
+
+        await webSocket
+            .CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task FillPipeFromWebSocketAsync(
+        WebSocket webSocket, PipeWriter writer, int bufferSize,
+        ILogger logger, CancellationToken cancellationToken)
+    {
+        var memory = new byte[bufferSize];
+
+        while (true)
+        {
+            try
+            {
+                var result = await webSocket.ReceiveAsync(
+                    new ArraySegment<byte>(memory), cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (result.CloseStatus.HasValue)
+                    break;
+
+                writer.Write(new ReadOnlySpan<byte>(memory, 0, result.Count));
+                Buffer.SetByte(memory, 0, 0);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error reading from WebSocket.");
+                break;
+            }
+
+            var flushResult = await writer.FlushAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (flushResult.IsCompleted)
+                break;
+        }
+
+        writer.Complete();
+    }
+
+    private static async Task ReadPipeToSocketAsync(
+        PipeReader reader, Socket socket, ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var result = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            var buffer = result.Buffer;
+
+            if (buffer.Length > 0)
+            {
+                try
+                {
+                    foreach (var segment in buffer)
+                    {
+                        await socket.SendAsync(
+                            segment, SocketFlags.None, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error writing to Socket.");
+                    break;
+                }
+            }
+
+            reader.AdvanceTo(buffer.End);
+
+            if (result.IsCompleted)
+                break;
+        }
+
+        reader.Complete();
+    }
+}
